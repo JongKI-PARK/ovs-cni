@@ -1,0 +1,107 @@
+#!/bin/bash
+log=/tmp/container_log/ovs-cni.log
+config=$(cat /dev/stdin)
+
+echo >> $log
+echo "COMMAND: $CNI_COMMAND" >> $log
+
+case $CNI_COMMAND in 
+ADD)
+	podcidr=$(echo $config | jq -r ".podcidr")
+	podcidr_gw=$(echo $podcidr | sed "s:0/24:1:g")
+	
+	# IP Generation for new Pod
+	if [-f /tmp/container_log/last_allocated_ip ]; then
+		n=$(cat /tmp/container_log/last_allocated_ip)
+	else
+		n=1
+	fi
+	n=$(($n+1))
+	ip_suffix=$(($n % 255 + 1))
+	ip=$(echo $podcidr | sed "s:0/24:$ip_suffix:g")
+	mkdir -p /tmp/container_log/
+	echo $n > /tmp/container_log/last_allocated_ip
+	
+	# Create veth peer
+	host_ifname="veth$n"
+	ip link add $CNI_IFNAME type veth peer name $host_ifname
+	ip link set $host_ifname up
+
+	# Set veth peer one side to Pod, the other to OVS
+	mkdir -p /var/run/netns/
+	ovs-vsctl add-port ovs-cni0 $host_ifname
+	ln -sfT $CNI_NETNS /var/run/netns/$CNI_CONTAINERID
+	ip link set $CNI_IFNAME netns $CNI_CONTAINERID
+
+	ip netns exec $CNI_CONTAINERID ip link set $CNI_IFNAME up
+	ip netns exec $CNI_CONTAINERID ip addr add $ip/24 dev $CNI_IFNAME
+	ip netns exec $CNI_CONTAINERID ip route add default via $podcidr_gw
+
+	# Store peer interface info
+	container_log_path="/tmp/container_log/$CNI_CONTAINERID"
+	echo "$host_ifname" > "$container_log_path"
+	
+	# DEBUG
+	
+	echo "DEBUG ENV CNI container id:$CNI_CONTAINERID" >> $log
+	echo "DEBUG ENV CNI network namespace :$CNI_NETNS" >> $log
+	echo "DEBUG ENV CNI network interface :$CNI_IFNAME" >> $log
+	echo "DEBUG LINK made $(ls /var/run/netns/)" >> $log
+	echo "DEBUG : $(ip netns exec $CNI_CONTAINERID ip link show eth0)" >> $log
+	echo "Find if configuration of mac is of : $mac" >> $log
+	
+	# 
+	mac=$(ip netns exec $CNI_CONTAINERID ip link show eth0 | awk '/ether/ {print $2}')
+	address="${ip}/24"
+
+	output_template='
+	{
+		"cniVersion": "0.3.1",
+		"interfaces": [
+			{
+				"name": "%s",
+				"mac": "%s",
+				"sandbox": "%s"
+			}
+		],
+		"ips": [
+			{
+				"version": "4",
+				"address": "%s",
+				"gateway": "%s",
+				"interface":  0
+			}
+		]
+	}'
+
+	output=$(printf "${output_template}" $CNI_IFNAME $mac $CNI_NETNS $address $podcidr_gw)
+	echo $output >> $log
+	echo "$output"
+
+;;
+
+DEL)
+	container_log_path="/tmp/container_log/$CNI_CONTAINERID"
+	peer_interface=$(cat "$container_log_path")
+	ovs-vsctl del-port ovs-cni0 $peer_interface
+
+	rm -rf "/tmp/container_log/$CNI_CONTAINERID"
+	rm -rf "/var/run/netns/$CNI_CONTAINERID"
+;;
+
+GET)
+;;
+
+VERSION)
+	echo '{
+		"cniVersion": "0.3.1",
+		"supportedVersions": ["0.3.0", "0.3.1", "0.4.0"]
+	}'
+;;
+
+*)
+	echo "Unknown CNI COMMAND: $CNI_COMMAND"
+	exit 1
+;;
+
+esac
