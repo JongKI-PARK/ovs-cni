@@ -86,6 +86,8 @@ DEL)
 
 	rm -rf "/tmp/container_log/$CNI_CONTAINERID"
 	rm -rf "/var/run/netns/$CNI_CONTAINERID"
+
+	# Container namspace side interfaces are removed by container runtime
 ;;
 
 GET)
