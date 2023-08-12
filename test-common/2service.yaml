@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  type: NodePort
+  selector:
+    app: nginx
+  ports:
+    - name: http
+      port: 80 # 서비스의 80번 포트로 들어오면
+      targetPort: 80 # Pod의 80번 포트로 전달
+      nodePort: 30000
+
