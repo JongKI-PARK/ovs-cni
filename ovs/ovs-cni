@@ -29,7 +29,7 @@ ADD)
 
 	# Set veth peer one side to Pod, the other to OVS
 	mkdir -p /var/run/netns/
-	sudo ovs-vsctl add-port ovs_cni0 $host_ifname
+	sudo ovs-vsctl add-port cni0 $host_ifname
 	sudo ln -sfT $CNI_NETNS /var/run/netns/$CNI_CONTAINERID
 	sudo ip link set $CNI_IFNAME netns $CNI_CONTAINERID
 
@@ -82,7 +82,7 @@ ADD)
 DEL)
 	container_log_path="/tmp/container_log/$CNI_CONTAINERID"
 	peer_interface=$(cat "$container_log_path")
-	ovs-vsctl del-port ovs_cni0 $peer_interface
+	ovs-vsctl del-port cni0 $peer_interface
 
 	rm -rf "/tmp/container_log/$CNI_CONTAINERID"
 	rm -rf "/var/run/netns/$CNI_CONTAINERID"
