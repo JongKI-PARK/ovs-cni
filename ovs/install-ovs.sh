@@ -15,7 +15,7 @@ version=$(sudo ovs-vsctl --version)
 echo "Open vSwitch installed $version"
 
 # Create OVS bridge
-bridge_name=ovs_cni0
+bridge_name=cni0
 sudo ovs-vsctl add-br $bridge_name
 echo "$bridge_name created"
 
