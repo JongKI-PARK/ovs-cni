@@ -8,7 +8,7 @@ echo "COMMAND: $CNI_COMMAND" >> $log
 case $CNI_COMMAND in 
 ADD)
 	podcidr=$(echo $config | jq -r ".podcidr")
-	podcidr_gw=$(echo $podcidr | sed "s:0/24:1:g")
+	podcidr_gw=$(echo $podcidr | sed "s:0/16:1:g")
 	
 	# IP Generation for new Pod
 	if [ -f /tmp/container_log/last_allocated_ip ]; then
@@ -18,7 +18,7 @@ ADD)
 	fi
 	n=$(($n+1))
 	ip_suffix=$(($n % 255 + 1))
-	ip=$(echo $podcidr | sed "s:0/24:$ip_suffix:g")
+	ip=$(echo $podcidr | sed "s:0/16:$ip_suffix:g")
 	mkdir -p /tmp/container_log/
 	echo $n > /tmp/container_log/last_allocated_ip
 	
@@ -34,7 +34,7 @@ ADD)
 	sudo ip link set $CNI_IFNAME netns $CNI_CONTAINERID
 
 	sudo ip netns exec $CNI_CONTAINERID ip link set $CNI_IFNAME up
-	sudo ip netns exec $CNI_CONTAINERID ip addr add $ip/24 dev $CNI_IFNAME
+	sudo ip netns exec $CNI_CONTAINERID ip addr add $ip/16 dev $CNI_IFNAME
 	sudo ip netns exec $CNI_CONTAINERID ip route add default via $podcidr_gw
 
 	# Store peer interface info
@@ -43,7 +43,7 @@ ADD)
 
 	# 
 	mac=$(sudo ip netns exec $CNI_CONTAINERID ip link show eth0 | awk '/ether/ {print $2}')
-	address="${ip}/24"
+	address="${ip}/16"
 	
 	output_template='
 	{
