@@ -19,4 +19,5 @@ bridge_name=ovs_cni0
 sudo ovs-vsctl add-br $bridge_name
 echo "$bridge_name created"
 
-
+# Setup OVS bridge
+sudo ifconfig cni_ovs0 10.244.0.1 subnet 255.255.0.0
